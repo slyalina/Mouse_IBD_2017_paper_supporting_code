@@ -1,45 +1,18 @@
 # Code for analysing logitudinal microbiome data
 Output of sessionInfo():
 
- R version 3.2.2 (2015-08-14)
- Platform: x86_64-pc-linux-gnu (64-bit)
- Running under: Red Hat Enterprise Linux
- 
- locale:
-  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
-  [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
-  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
-  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
-  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
- [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
- 
- attached base packages:
- [1] splines   parallel  stats     graphics  grDevices utils     datasets 
- [8] methods   base     
- 
- other attached packages:
-  [1] lme4_1.1-10       refund_0.1-14     DT_0.1           
-  [4] R.utils_2.3.0     R.oo_1.20.0       R.methodsS3_1.7.1
-  [7] tidyr_0.4.1       readr_0.2.2       reshape2_1.4.1   
- [10] dplyr_0.4.3       lazyeval_0.1.10   lpSolve_5.6.13   
- [13] cplm_0.7-4        Matrix_1.2-2      coda_0.18-1      
- [16] stringr_1.0.0     doParallel_1.0.10 iterators_1.0.8  
- [19] foreach_1.4.3    
- 
- loaded via a namespace (and not attached):
-  [1] biglm_0.9-1        statmod_1.4.24     lattice_0.20-33   
-  [4] colorspace_1.2-6   gamm4_0.2-3        htmltools_0.3.5   
-  [7] stats4_3.2.2       yaml_2.1.13        mgcv_1.8-9        
- [10] MCMCpack_1.3-6     nloptr_1.0.4       DBI_0.3.1         
- [13] tweedie_2.2.1      plyr_1.8.3         MatrixModels_0.4-1
- [16] munsell_0.4.3      gtable_0.2.0       htmlwidgets_0.6   
- [19] codetools_0.2-14   evaluate_0.8.3     magic_1.5-6       
- [22] knitr_1.12.3       SparseM_1.7        RLRsim_3.1-2      
- [25] quantreg_5.21      Rcpp_0.12.10       pbs_1.1           
- [28] scales_0.4.0       formatR_1.3        jsonlite_0.9.19   
- [31] grpreg_2.8-1       mcmc_0.9-4         ggplot2_2.1.0     
- [34] digest_0.6.9       stringi_1.0-1      grid_3.2.2        
- [37] tools_3.2.2        magrittr_1.5       fda_2.4.4         
- [40] MASS_7.3-45        assertthat_0.1     minqa_1.2.4       
- [43] rmarkdown_0.9.5    R6_2.1.2           boot_1.3-17       
- [46] compiler_3.2.2     nlme_3.1-122
+**R version 3.2.2 (2015-08-14)**
+
+**Platform:** x86_64-pc-linux-gnu (64-bit) 
+
+**locale:**
+_LC_CTYPE=en_US.UTF-8_, _LC_NUMERIC=C_, _LC_TIME=en_US.UTF-8_, _LC_COLLATE=en_US.UTF-8_, _LC_MONETARY=en_US.UTF-8_, _LC_MESSAGES=en_US.UTF-8_, _LC_PAPER=en_US.UTF-8_, _LC_NAME=C_, _LC_ADDRESS=C_, _LC_TELEPHONE=C_, _LC_MEASUREMENT=en_US.UTF-8_ and _LC_IDENTIFICATION=C_
+
+**attached base packages:** 
+_splines_, _parallel_, _stats_, _graphics_, _grDevices_, _utils_, _datasets_, _methods_ and _base_
+
+**other attached packages:** 
+_pander(v.0.6.0)_, _lme4(v.1.1-10)_, _refund(v.0.1-14)_, _DT(v.0.1)_, _R.utils(v.2.3.0)_, _R.oo(v.1.20.0)_, _R.methodsS3(v.1.7.1)_, _tidyr(v.0.4.1)_, _readr(v.0.2.2)_, _reshape2(v.1.4.1)_, _dplyr(v.0.4.3)_, _lazyeval(v.0.1.10)_, _lpSolve(v.5.6.13)_, _cplm(v.0.7-4)_, _Matrix(v.1.2-2)_, _coda(v.0.18-1)_, _stringr(v.1.0.0)_, _doParallel(v.1.0.10)_, _iterators(v.1.0.8)_ and _foreach(v.1.4.3)_
+
+**loaded via a namespace (and not attached):** 
+_biglm(v.0.9-1)_, _statmod(v.1.4.24)_, _lattice(v.0.20-33)_, _colorspace(v.1.2-6)_, _gamm4(v.0.2-3)_, _htmltools(v.0.3.5)_, _stats4(v.3.2.2)_, _yaml(v.2.1.13)_, _mgcv(v.1.8-9)_, _MCMCpack(v.1.3-6)_, _nloptr(v.1.0.4)_, _DBI(v.0.3.1)_, _tweedie(v.2.2.1)_, _plyr(v.1.8.3)_, _MatrixModels(v.0.4-1)_, _munsell(v.0.4.3)_, _gtable(v.0.2.0)_, _htmlwidgets(v.0.6)_, _codetools(v.0.2-14)_, _evaluate(v.0.8.3)_, _magic(v.1.5-6)_, _knitr(v.1.12.3)_, _SparseM(v.1.7)_, _RLRsim(v.3.1-2)_, _quantreg(v.5.21)_, _Rcpp(v.0.12.10)_, _pbs(v.1.1)_, _scales(v.0.4.0)_, _formatR(v.1.3)_, _jsonlite(v.0.9.19)_, _grpreg(v.2.8-1)_, _mcmc(v.0.9-4)_, _ggplot2(v.2.1.0)_, _digest(v.0.6.9)_, _stringi(v.1.0-1)_, _grid(v.3.2.2)_, _tools(v.3.2.2)_, _magrittr(v.1.5)_, _fda(v.2.4.4)_, _MASS(v.7.3-45)_, _assertthat(v.0.1)_, _minqa(v.1.2.4)_, _rmarkdown(v.0.9.5)_, _R6(v.2.1.2)_, _boot(v.1.3-17)_, _compiler(v.3.2.2)_ and _nlme(v.3.1-122)_> 
