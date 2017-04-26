@@ -225,7 +225,7 @@ datatable(intercept_df)
 ```
 
 ## Segmented GLMM analysis
-This is the code to further investigate whether modules had a slope difference between or after a specified breakpoint. Run again on the same sample data as above
+This is the code to further investigate whether modules had a inter-group slope difference before or after a specified breakpoint. Run again on the same sample data as above
 
 ```{r segmented_glmm_function}
 segmented_glmm = function(data, # input dataframe

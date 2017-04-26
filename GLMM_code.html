@@ -150,13 +150,12 @@ sessionInfo()</code></pre>
 ## [8] methods   base     
 ## 
 ## other attached packages:
-##  [1] lme4_1.1-10       refund_0.1-14     DT_0.1           
-##  [4] R.utils_2.3.0     R.oo_1.20.0       R.methodsS3_1.7.1
-##  [7] tidyr_0.4.1       readr_0.2.2       reshape2_1.4.1   
-## [10] dplyr_0.4.3       lazyeval_0.1.10   lpSolve_5.6.13   
-## [13] cplm_0.7-4        Matrix_1.2-2      coda_0.18-1      
-## [16] stringr_1.0.0     doParallel_1.0.10 iterators_1.0.8  
-## [19] foreach_1.4.3    
+##  [1] refund_0.1-14     DT_0.1            R.utils_2.3.0    
+##  [4] R.oo_1.20.0       R.methodsS3_1.7.1 tidyr_0.4.1      
+##  [7] readr_0.2.2       reshape2_1.4.1    dplyr_0.4.3      
+## [10] lazyeval_0.1.10   lpSolve_5.6.13    cplm_0.7-4       
+## [13] Matrix_1.2-2      coda_0.18-1       stringr_1.0.0    
+## [16] doParallel_1.0.10 iterators_1.0.8   foreach_1.4.3    
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] biglm_0.9-1        statmod_1.4.24     lattice_0.20-33   
@@ -168,13 +167,13 @@ sessionInfo()</code></pre>
 ## [19] codetools_0.2-14   evaluate_0.8.3     magic_1.5-6       
 ## [22] knitr_1.12.3       SparseM_1.7        RLRsim_3.1-2      
 ## [25] quantreg_5.21      Rcpp_0.12.10       pbs_1.1           
-## [28] scales_0.4.0       formatR_1.3        jsonlite_0.9.19   
+## [28] scales_0.4.0       formatR_1.3        lme4_1.1-10       
 ## [31] grpreg_2.8-1       mcmc_0.9-4         ggplot2_2.1.0     
 ## [34] digest_0.6.9       stringi_1.0-1      grid_3.2.2        
 ## [37] tools_3.2.2        magrittr_1.5       fda_2.4.4         
 ## [40] MASS_7.3-45        assertthat_0.1     minqa_1.2.4       
 ## [43] rmarkdown_0.9.5    R6_2.1.2           boot_1.3-17       
-## [46] compiler_3.2.2     nlme_3.1-122</code></pre>
+## [46] nlme_3.1-122</code></pre>
 <pre class="r"><code>numCores = detectCores()
 registerDoParallel(max(1,numCores-3)) # Use all available cores minus 3 for parallel tasks</code></pre>
 <pre class="r"><code># This function is a generic form of getting 3 fits to the data and comparing them via LRT to obtain p values for
@@ -361,18 +360,18 @@ intercept_df = intercept_df %&gt;% mutate(
 <div id="interactions-coefficient-table" class="section level2">
 <h2>Interactions coefficient table</h2>
 <pre class="r"><code>datatable(interaction_df)</code></pre>
-<p><div id="htmlwidget-6926" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-6926">{"x":{"data":[["1","2","3","4","5"],[0.425616611526446,0.00179288864471334,0.000639329198965239,1.78889800105393e-09,0.000134103549921963],[0.00610250728643913,0.209192702405021,0.0295891874747614,0.0539826192214458,0.0713029315579137],["M00014","M00332","M00009","M00076","M00259"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> \u003c/th>\n      <th>p_value\u003c/th>\n      <th>interaction_coeff\u003c/th>\n      <th>module\u003c/th>\n    \u003c/tr>\n  \u003c/thead>\n\u003c/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false},"callback":null,"filter":"none"},"evals":[],"jsHooks":[]}</script></p>
+<p><div id="htmlwidget-3401" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3401">{"x":{"data":[["1","2","3","4","5"],[0.425616611526446,0.00179288864471334,0.000639329198965239,1.78889800105393e-09,0.000134103549921963],[0.00610250728643913,0.209192702405021,0.0295891874747614,0.0539826192214458,0.0713029315579137],["M00014","M00332","M00009","M00076","M00259"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> \u003c/th>\n      <th>p_value\u003c/th>\n      <th>interaction_coeff\u003c/th>\n      <th>module\u003c/th>\n    \u003c/tr>\n  \u003c/thead>\n\u003c/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false},"callback":null,"filter":"none"},"evals":[],"jsHooks":[]}</script></p>
 </div>
 <div id="intercept-table" class="section level2">
 <h2>Intercept table</h2>
 <pre class="r"><code>datatable(intercept_df)</code></pre>
-<p><div id="htmlwidget-6861" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-6861">{"x":{"data":[["1","2","3","4","5"],[0.476299363606014,0.474688083908879,0.574212217018448,1,0.186996665882722],[-0.0325840824440807,-1.41424615536167,-0.163648486594606,-0.309376954768766,-0.408501985111549],["M00014","M00332","M00009","M00076","M00259"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> \u003c/th>\n      <th>p_value\u003c/th>\n      <th>intercept_coeff\u003c/th>\n      <th>module\u003c/th>\n    \u003c/tr>\n  \u003c/thead>\n\u003c/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false},"callback":null,"filter":"none"},"evals":[],"jsHooks":[]}</script></p>
+<p><div id="htmlwidget-3310" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3310">{"x":{"data":[["1","2","3","4","5"],[0.476299363606014,0.474688083908879,0.574212217018448,1,0.186996665882722],[-0.0325840824440807,-1.41424615536167,-0.163648486594606,-0.309376954768766,-0.408501985111549],["M00014","M00332","M00009","M00076","M00259"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> \u003c/th>\n      <th>p_value\u003c/th>\n      <th>intercept_coeff\u003c/th>\n      <th>module\u003c/th>\n    \u003c/tr>\n  \u003c/thead>\n\u003c/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false},"callback":null,"filter":"none"},"evals":[],"jsHooks":[]}</script></p>
 </div>
 <div id="segmented-glmm-analysis" class="section level2">
 <h2>Segmented GLMM analysis</h2>
-<p>This is the code to further investigate whether modules had a slope difference between or after a specified breakpoint. Run again on the same sample data as above</p>
+<p>This is the code to further investigate whether modules had a inter-group slope difference before or after a specified breakpoint. Run again on the same sample data as above</p>
 <pre class="r"><code>segmented_glmm = function(data, # input dataframe
                           hierarchy1_col, # column name for gene level grouping (ex: &quot;KO&quot;)
                           hierarchy2_col = NULL, # column name for pathway level grouping; optional (ex: &quot;module_id&quot;)
@@ -456,6 +455,11 @@ intercept_df = intercept_df %&gt;% mutate(
                                extra_covars = &quot;kit&quot;,
                                time_out = 500)</code></pre>
 <pre><code>## name interaction_coeffs(2)   are_nonzero(2)</code></pre>
+<pre><code>## 
+## Attaching package: 'lme4'</code></pre>
+<pre><code>## The following objects are masked from 'package:cplm':
+## 
+##     fixef, ranef, VarCorr</code></pre>
 <pre class="r"><code>segmented_glmm_results = segmented_glmm_results[!sapply(segmented_glmm_results,function(x) is.null(x[[1]]))]
 segmented_res_df = bind_rows(lapply(segmented_glmm_results,function(x) data.frame(p=x$p_interaction,DNR_vs_WT_slope_diff = x$coeff_interaction,segment=factor(c(&quot;before&quot;,&quot;after&quot;),levels=c(&quot;before&quot;,&quot;after&quot;)))))
 segmented_res_df$module_id = rep(names(glmm_results),each=2)</code></pre>
@@ -463,8 +467,8 @@ segmented_res_df$module_id = rep(names(glmm_results),each=2)</code></pre>
 <div id="results-of-segmented-regression" class="section level2">
 <h2>Results of segmented regression</h2>
 <pre class="r"><code>datatable(segmented_res_df)</code></pre>
-<p><div id="htmlwidget-4073" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-4073">{"x":{"data":[["1","2","3","4","5","6","7","8","9","10"],[0.910903945002326,0.630653003391844,0.0479857666616884,0.467447889626301,0.563528120252938,0.020304256137417,0.796864357600337,0.0241731510473395,0.858698413059654,0.00212445897146],[-0.00399533691884364,0.00747367382466718,-0.682619638748404,0.0638220368562856,-0.0184029748769284,0.0335060606684363,-0.0204979473057114,0.0674061562003943,-0.0128075149475154,0.0935015569770756],["before","after","before","after","before","after","before","after","before","after"],["M00014","M00014","M00332","M00332","M00009","M00009","M00076","M00076","M00259","M00259"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> \u003c/th>\n      <th>p\u003c/th>\n      <th>DNR_vs_WT_slope_diff\u003c/th>\n      <th>segment\u003c/th>\n      <th>module_id\u003c/th>\n    \u003c/tr>\n  \u003c/thead>\n\u003c/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false},"callback":null,"filter":"none"},"evals":[],"jsHooks":[]}</script></p>
+<p><div id="htmlwidget-1992" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1992">{"x":{"data":[["1","2","3","4","5","6","7","8","9","10"],[0.910903945002326,0.630653003391844,0.0479857666616884,0.467447889626301,0.563528120252938,0.020304256137417,0.796864357600337,0.0241731510473395,0.858698413059654,0.00212445897146],[-0.00399533691884364,0.00747367382466718,-0.682619638748404,0.0638220368562856,-0.0184029748769284,0.0335060606684363,-0.0204979473057114,0.0674061562003943,-0.0128075149475154,0.0935015569770756],["before","after","before","after","before","after","before","after","before","after"],["M00014","M00014","M00332","M00332","M00009","M00009","M00076","M00076","M00259","M00259"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> \u003c/th>\n      <th>p\u003c/th>\n      <th>DNR_vs_WT_slope_diff\u003c/th>\n      <th>segment\u003c/th>\n      <th>module_id\u003c/th>\n    \u003c/tr>\n  \u003c/thead>\n\u003c/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false},"callback":null,"filter":"none"},"evals":[],"jsHooks":[]}</script></p>
 </div>
 
 
