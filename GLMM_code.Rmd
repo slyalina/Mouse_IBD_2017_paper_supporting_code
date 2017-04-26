@@ -1,0 +1,326 @@
+---
+title: "GLMM code"
+author: "Svetlana Lyalina"
+output: html_document
+---
+
+```{r load_libs, message=FALSE}
+library(foreach)
+library(doParallel)
+library(stringr)
+library(cplm)
+library(lpSolve)
+library(lazyeval)
+library(dplyr)
+library(reshape2)
+library(readr)
+library(tidyr)
+library(R.utils)
+library(DT)
+library(refund)
+sessionInfo()
+numCores = detectCores()
+registerDoParallel(max(1,numCores-3)) # Use all available cores minus 3 for parallel tasks
+```
+
+```{r glmm_generic_function}
+# This function is a generic form of getting 3 fits to the data and comparing them via LRT to obtain p values for
+# the constant effect of the variable of interest (e.g. group) as well as its interaction with time
+glmm_time_trend = function(data, # input dataframe
+                           hierarchy1_col, # column name for gene level grouping (ex: "KO")
+                           hierarchy2_col = NULL, # column name for pathway level grouping; optional (ex: "module_id")
+                           #NOTE: if hierarchy2_col is empty then testing happens on per-gene groups
+                           response_col, # column name holding the response variable (ex: "Abundance")
+                           time_col, # column name holding numeric time values (ex: "week") 
+                           group_col, # column name holding factor separating data into groups to be contrasted (ex: "group")
+                           cases_label, # value of the group column that correponds to "cases" (ex: "DNR")
+                           individual_col, # column name that specifies subjects
+                           levels_to_test = NULL, # smaller set of values to test than all levels of ontological grouping
+                           extra_covars=c(), # any additonal variables affecting response; optional (ex: "kit")
+                           time_out=300, # constrain the time alloted for fitting each model (in seconds)
+                           log_file = "") # write intermediate results to log for monitoring, otherwise print to stdout
+{
+
+    if(is.null(levels_to_test)){
+        if(is.null(hierarchy2_col)){
+            levels_to_test = unique(unlist(data[,hierarchy1_col]))
+        }
+        else{
+            levels_to_test = unique(unlist(data[,hierarchy2_col]))
+        }
+    }
+    write(paste(c("name","p_intercept","p_slope","coeff_intercept","coeff_slope"),collapse = " "),file = log_file,append = TRUE)
+    glmm_results = foreach(lvl = levels_to_test,
+                           .inorder = TRUE,
+                           .packages = c("cplm","dplyr","lazyeval","R.utils")
+                            ) %dopar% {
+        tryCatch({
+            # Subset the data to either all the genes in pathway being looekd at,
+            # or just the one gene if not doing higher level grouping
+            data_here = data %>%
+                filter_(interp(~lvl_tested == lvl,
+                               lvl_tested = as.name(ifelse(!is.null(hierarchy2_col),
+                                                           hierarchy2_col,
+                                                           hierarchy1_col))))
+            # Assemble model formulas from provided variable names to fit 3 models
+            fmla0 = sprintf("%s ~ %s %s %s + (1 + %s | %s) %s",
+                            response_col,
+                            time_col,
+                            ifelse(length(extra_covars) > 0,"+",""),
+                            paste(extra_covars,collapse = " + "),
+                            time_col,
+                            individual_col,
+                            ifelse(!is.null(hierarchy2_col),
+                                sprintf("+ (1 + %s|%s)",time_col,hierarchy1_col),
+                                ""
+                            ))
+            fmla1 = sprintf("%s ~ %s + %s %s %s + (1 + %s | %s) %s",
+                            response_col,
+                            time_col,
+                            group_col,
+                            ifelse(length(extra_covars) > 0,"+",""),
+                            paste(extra_covars,collapse = " + "),
+                            time_col,
+                            individual_col,
+                            ifelse(!is.null(hierarchy2_col),
+                                sprintf("+ (1 + %s|%s)",time_col,hierarchy1_col),
+                                ""
+                            ))
+            fmla2 = sprintf("%s ~ %s * %s %s %s + (1 + %s | %s) %s",
+                            response_col,
+                            time_col,
+                            group_col,
+                            ifelse(length(extra_covars) > 0,"+",""),
+                            paste(extra_covars,collapse = " + "),
+                            time_col,
+                            individual_col,
+                            ifelse(!is.null(hierarchy2_col),
+                                sprintf("+ (1 + %s|%s)",time_col,hierarchy1_col),
+                                ""
+                            ))
+            fit0 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla0),
+                                                         data=as.name("data_here"),
+                                                         control=list(max.iter=3000,
+                                                                      max.fun=20000))),
+                                   timeout = time_out,onTimeout = "error")
+            fit1 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla1),
+                                                         data=as.name("data_here"),
+                                                         control=list(max.iter=3000,
+                                                                      max.fun=20000))),
+                                   timeout = time_out,onTimeout = "error")
+            fit2 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla2),
+                                                         data=as.name("data_here"),
+                                                         control=list(max.iter=3000,
+                                                                      max.fun=20000))),
+                                   timeout = time_out,onTimeout = "error")
+            anova_res = anova(fit0,fit1,fit2) # does LRT on the set of nested models
+            p_vals = anova_res$`Pr(>Chisq)`[2:3]
+            coeffs = cplm::fixef(fit2) # take estimates from most complex model
+            write(sprintf("%s   %G  %G  %f  %f",lvl,
+                          p_vals[1],
+                          p_vals[2],
+                          coeffs[paste0(group_col,cases_label)],
+                          coeffs[paste0(time_col,":",group_col,cases_label)]),
+                  file = log_file,append = TRUE)
+            return(list(p_interaction = p_vals[2],
+                        p_intercept = p_vals[1],
+                        coeff_interaction = coeffs[paste0(time_col,":",group_col,cases_label)],
+                        coeff_intercept = coeffs[paste0(group_col,cases_label)],
+                        fit = list(aov=anova_res,
+                                   index=fit2@p,
+                                   disp=fit2@phi,
+                                   coefs=coeffs)))}
+            ,error = function(e) { #If an error ocurred or model fitting timed out return a list of NAs
+                write(toString(e), file=log_file, append = TRUE)
+                return(list(NA,NA,NA,NA,NA))
+            }
+        )
+}
+    names(glmm_results) = levels_to_test
+    return(glmm_results)
+}
+
+```
+
+```{r glmm_time_trend_simplified}
+# To make the formulas used in the paper more transparent, this is a simplified version of the above function
+# that no longer accepts generic names and instead expects there to be appropriate columns:
+# Abund, week, kit, group (with levels WT and DNR), individual, KO, module_id
+glmm_time_trend_simple = function(data,levels_to_test,time_out = 300,log_file = ""){
+    write(paste(c("name","p_intercept","p_slope","coeff_intercept","coeff_slope"),collapse = " "),file = log_file,append = TRUE)
+    glmm_results = foreach(lvl = levels_to_test,
+                           .inorder = TRUE,
+                           .packages = c("cplm","dplyr","R.utils")
+    ) %dopar% {
+        tryCatch({
+            data_here = data %>% filter(module_id == lvl)
+            fmla0 = "Abundance ~ week + kit + (1 + week | individual) + (1 + week | KO)"
+            fmla1 = "Abundance ~ week + group + kit + (1 + week | individual) + (1 + week | KO)"
+            fmla2 = "Abundance ~ week + group + week:group + kit + (1 + week | individual) + (1 + week | KO)"
+            fit0 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla0),data=as.name("data_here"))),timeout = time_out,onTimeout = "error")
+            fit1 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla1),data=as.name("data_here"))),timeout = time_out,onTimeout = "error")
+            fit2 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla2),data=as.name("data_here"))),timeout = time_out,onTimeout = "error")
+            anova_res = anova(fit0,fit1,fit2)
+            p_vals = anova_res$`Pr(>Chisq)`[2:3]
+            coeffs = cplm::fixef(fit2)
+            write(sprintf("%s   %G  %G  %f  %f",lvl,
+                          p_vals[1],
+                          p_vals[2],
+                          coeffs["groupDNR"],
+                          coeffs["week:groupDNR"]),
+                  file = log_file,append = TRUE)
+            return(list(p_interaction = p_vals[2],
+                        p_intercept = p_vals[1],
+                        coeff_interaction = coeffs["week:groupDNR"],
+                        coeff_intercept = coeffs["groupDNR"],
+                        fit = list(aov=anova_res,
+                                   index=fit2@p,
+                                   disp=fit2@phi,
+                                   coefs=coeffs)))
+        } ,error = function(e) {
+            write(toString(e), file=log_file, append = TRUE)
+            return(list(NA,NA,NA,NA,NA))
+        })
+    }
+}
+```
+
+## Sample input results
+Run the code on a subset of the KO data (5 modules total) and display results
+
+```{r glmm_time_trend_run}
+df_for_glmm = read_tsv("sample_input_for_glmm.txt")
+df_for_glmm$group = factor(df_for_glmm$group,levels=c("WT","DNR"))
+glmm_results = glmm_time_trend(data = df_for_glmm,
+                               hierarchy1_col = "KO",
+                               hierarchy2_col = "module_id",
+                               response_col = "Abundance",
+                               time_col = "week",
+                               group_col = "group",
+                               cases_label = "DNR",
+                               individual_col = "individual",
+                               extra_covars = "kit",
+                               time_out = 3000)
+glmm_results = glmm_results[sapply(glmm_results,function(x) !is.na(x[[1]]))] # Removed failed fits
+interaction_df = as.data.frame(t(sapply(glmm_results,function(x) c(unname(x[[1]]),unname(x[[3]])))))
+colnames(interaction_df) = c("p_value","interaction_coeff")
+interaction_df = interaction_df %>% 
+    mutate(module = rownames(interaction_df))
+intercept_df = as.data.frame(t(sapply(glmm_results,function(x) c(unname(x[[2]]),unname(x[[4]])))))
+colnames(intercept_df) = c("p_value","intercept_coeff")
+intercept_df = intercept_df %>% mutate(
+    module = rownames(intercept_df))
+```
+
+## Interactions coefficient table
+
+```{r interaction_results}
+datatable(interaction_df)
+```
+
+## Intercept table
+
+```{r intercept_results}
+datatable(intercept_df)
+```
+
+## Segmented GLMM analysis
+This is the code to further investigate whether modules had a slope difference between or after a specified breakpoint. Run again on the same sample data as above
+
+```{r segmented_glmm_function}
+segmented_glmm = function(data, # input dataframe
+                          hierarchy1_col, # column name for gene level grouping (ex: "KO")
+                          hierarchy2_col = NULL, # column name for pathway level grouping; optional (ex: "module_id")
+                          #NOTE: if hierarchy2_col is empty then testing happens on per-gene groups
+                          response_col, # column name holding the response variable (ex: "Abundance")
+                          time_col, # column name holding numeric time values (ex: "week") 
+                          group_col, # column name holding factor separating data into groups to be contrasted (ex: "group")
+                          cases_label, # value of the group column that correponds to "cases" (ex: "DNR")
+                          individual_col, # column name that specifies subjects
+                          levels_to_test = NULL, # smaller set of values to test than all levels of ontological grouping
+                          extra_covars=c(), # any additonal variables affecting response; optional (ex: "kit")
+                          time_out=300, # constrain the time alloted for fitting each model (in seconds)
+                          log_file = "",# write intermediate results to log for monitoring, otherwise print to stdout
+                          break_pt = 7) # chose a breakpoint to segment the linear regression
+{
+    b1 <- function(x, bp) ifelse(x < bp, bp - x, 0)
+    b2 <- function(x, bp) ifelse(x < bp, 0, x - bp)
+    if(is.null(levels_to_test)){
+        if(is.null(hierarchy2_col)){
+            levels_to_test = unique(unlist(data[,hierarchy1_col]))
+        }
+        else{
+            levels_to_test = unique(unlist(data[,hierarchy2_col]))
+        }
+    }
+    write("name interaction_coeffs(2)   are_nonzero(2)",file = log_file,append = TRUE)
+    glmm_results = foreach(lvl = levels_to_test,
+                           .inorder = TRUE,
+                           .packages = c("cplm","dplyr","lazyeval","R.utils","lme4")
+    ) %dopar% {
+        tryCatch({
+            # Subset the data to either all the genes in pathway being looekd at,
+            # or just the one gene if not doing higher level grouping
+            data_here = data %>%
+                filter_(interp(~lvl_tested == lvl,
+                               lvl_tested = as.name(ifelse(!is.null(hierarchy2_col),
+                                                           hierarchy2_col,
+                                                           hierarchy1_col))))
+            time_fun = sprintf("(b1(%s,%d)+b2(%s,%d))",time_col,break_pt,time_col,break_pt)
+            fmla2 = sprintf("%s ~ %s * %s %s %s + (1 + %s | %s) %s",
+                            response_col,
+                            time_fun,
+                            group_col,
+                            ifelse(length(extra_covars) > 0,"+",""),
+                            paste(extra_covars,collapse = " + "),
+                            time_fun,
+                            individual_col,
+                            ifelse(!is.null(hierarchy2_col),
+                                   sprintf("+ (1 + %s|%s)",time_fun,hierarchy1_col),
+                                   ""
+                            ))
+            fit2 = evalWithTimeout(do.call("cpglmm",list(formula=formula(fmla2),data=as.name("data_here"))),timeout = time_out,onTimeout = "error")
+            fit2_lme =evalWithTimeout(do.call("lmer",list(formula=formula(fmla2),data=as.name("data_here"),REML=FALSE)),timeout = time_out,onTimeout = "error") #Only need this fit to get degrees of freedom estimate
+            deg_free = df.residual(fit2_lme)
+            coeffs = cplm::fixef(fit2)
+            pvals = 2*pt(abs(summary(fit2)$coefs[,"t value"]),df=deg_free,lower.tail = FALSE)
+            interaction_coeffs = str_detect(names(coeffs),":")
+            slope_cols = str_detect(names(coeffs),time_col) & !str_detect(names(coeffs),":")
+            write(sprintf("%s   %f  %f  %G  %G",lvl,
+                          coeffs[interaction_coeffs][1],
+                          coeffs[interaction_coeffs][2],pvals[interaction_coeffs][1],
+                          pvals[interaction_coeffs][2]),file = log_file,append = TRUE)
+            return(list(p_interaction = pvals[interaction_coeffs],
+                        coeff_interaction = coeffs[interaction_coeffs],
+                        coeff_slopes = coeffs[slope_cols],
+                        fit = fit2))}
+            ,error = function(e) {
+                return(list(NULL,e))
+            })
+    }
+    
+}
+
+```
+
+```{r segmented_glmm_run}
+segmented_glmm_results = segmented_glmm(data = df_for_glmm,
+                               hierarchy1_col = "KO",
+                               hierarchy2_col = "module_id",
+                               response_col = "Abundance",
+                               time_col = "week",
+                               group_col = "group",
+                               cases_label = "DNR",
+                               individual_col = "individual",
+                               extra_covars = "kit",
+                               time_out = 500)
+segmented_glmm_results = segmented_glmm_results[!sapply(segmented_glmm_results,function(x) is.null(x[[1]]))]
+segmented_res_df = bind_rows(lapply(segmented_glmm_results,function(x) data.frame(p=x$p_interaction,DNR_vs_WT_slope_diff = x$coeff_interaction,segment=factor(c("before","after"),levels=c("before","after")))))
+segmented_res_df$module_id = rep(names(glmm_results),each=2)
+```
+
+## Results of segmented regression
+
+```{r segmented_res_display}
+datatable(segmented_res_df)
+```
