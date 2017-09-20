@@ -1,0 +1,162 @@
+---
+title: "FPCA for finding two group differences"
+author: "Svetlana Lyalina"
+output: html_document
+---
+
+```{r load_libs}
+library(foreach)
+library(doParallel)
+library(stringr)
+library(lazyeval)
+library(dplyr)
+library(reshape2)
+library(readr)
+library(tidyr)
+library(R.utils)
+library(DT)
+library(refund)
+sessionInfo()
+numCores = detectCores()
+```
+
+## FPCA-based test of differences in trajectory
+
+```{r FPCA_test,message=FALSE,warning=FALSE,cache=FALSE}
+get_Yhat = function(fpca_obj,Y_for_fit){
+    # This was taken from the original source code of fpca.face in the refund package (version 0.1.14)
+    evalues = fpca_obj$evalues
+    efunctions = fpca_obj$efunctions
+    mu = fpca_obj$mu
+    npc = fpca_obj$npc
+    sigma2 = fpca_obj$sigma2
+    D.inv = diag(1/evalues)
+    Z = efunctions
+    I.pred = nrow(Y_for_fit)
+    D = ncol(Y_for_fit)
+    Y.tilde = Y_for_fit - matrix(mu, I.pred, D, byrow = TRUE)
+    Yhat = matrix(0, nrow = I.pred, ncol = D)
+    scores = matrix(NA, nrow = I.pred, ncol = npc)
+    ZtZ_sD.inv = solve(crossprod(Z) + sigma2 * D.inv)
+    scores = ZtZ_sD.inv %*% t(Z) %*% t(as.matrix(Y.tilde))
+    Yhat = matrix(rep(mu,I.pred),byrow = TRUE,nrow = I.pred) + t(scores) %*% t(efunctions)
+
+    return(Yhat)
+}
+
+permFPCA = function(df, # input data that contains the necessary columns references below
+                    individual_col, # column holding the patient/individual var
+                    time_col, # column holding time var
+                    species_col, # column partitioning trajectories by species/taxa
+                    group_col, # column specifying the two experimental groups
+                    abund_col, # column holding RPKG or some other metric of abundance
+                    cases_label, # string designating group of interest
+                    nperm = 500, # number of permutations to do in order to build null distribution
+                    ncores=1) # number of cores to split tasks among
+    { 
+    registerDoParallel(ncores) # set up for parallel
+    # Subset to individuals with more than 2 timepoints
+    individuals_w_whole_traj = df %>% group_by_(individual_col) %>%
+        summarise_(points=interp(~length(unique(var)),var = as.name(time_col))) %>%
+        filter(points>2) %>% .[[individual_col]]
+
+    df = filter_(df,interp(~individual %in% individuals_w_whole_traj, individual = as.name(individual_col)))
+    
+    #Fit on pooled data
+    res_null = fpca.face(Y = acast(df,formula(paste0(individual_col," + ",species_col," ~ ",time_col)),value.var=abund_col,fill=0),k=2,var=TRUE)
+    
+    #Find fit on case data only
+    res_alt_DNR = fpca.face(Y=df %>% filter_(interp(~group==cases_label,group=as.name(group_col))) %>% acast(formula(paste0(individual_col," + ",species_col," ~ ",time_col)),value.var=abund_col,fill=0),k=2,var=TRUE)
+    
+    #Find fit on control only
+    res_alt_WT = fpca.face(Y=df %>% filter_(interp(~group!=cases_label,group=as.name(group_col))) %>% acast(formula(paste0(individual_col," + ",species_col," ~ ",time_col)),value.var=abund_col,fill=0),k=2,var=TRUE)
+    
+    #Calculate real F
+    
+    F_real = df %>% dcast(formula(paste0(individual_col," + ",species_col," ~ ",time_col)),value.var=abund_col) %>% select_(individual_col,species_col) %>% tidyr::unite_("rows",c(individual_col,species_col),remove=FALSE)
+    F_real$sqErrors1 = 0
+    F_real[match(rownames(res_alt_DNR$Y),F_real$rows),"sqErrors1"] = rowSums((res_alt_DNR$Yhat - res_alt_DNR$Y)^2,na.rm=TRUE)
+    F_real[match(rownames(res_alt_WT$Y),F_real$rows),"sqErrors1"] = rowSums((res_alt_WT$Yhat - res_alt_WT$Y)^2,na.rm=TRUE)
+    F_real$sqErrors0 = 0
+    F_real[match(rownames(res_null$Y),F_real$rows),"sqErrors0"] = rowSums((res_null$Yhat - res_null$Y)^2,na.rm=TRUE)
+    realFs = group_by_(F_real,species_col) %>% summarise(F_real = (sum(sqErrors0,na.rm=TRUE)-sum(sqErrors1,na.rm=TRUE))/sum(sqErrors1,na.rm=TRUE))
+    
+    # Permuation based significance
+    df = df %>% group_by_(species_col,time_col)
+
+    permFs = foreach(perm = seq(nperm),
+                     .combine=rbind,
+                     .packages=c("dplyr","reshape2","lazyeval"),
+                     .export=c("get_Yhat")) %dopar% {
+        tryCatch({
+        df_perm = df %>% select_(interp(~-(abund),abund=as.name(abund_col)))
+        df_perm[,abund_col] = df %>% sample_frac(replace=TRUE) %>% .[[abund_col]]
+        Y_all = df_perm %>%
+            acast(formula(paste0(individual_col,"+",species_col,"~",time_col)),value.var=abund_col,fill=0)
+        Y_DNR = df_perm %>% filter_(interp(~group==cases_label,group=as.name(group_col))) %>%
+            acast(formula(paste0(individual_col,"+",species_col,"~",time_col)),value.var=abund_col,fill=0)
+        Y_WT = df_perm %>% filter_(interp(~group!=cases_label,group=as.name(group_col))) %>%
+            acast(formula(paste0(individual_col,"+",species_col,"~",time_col)),value.var=abund_col,fill=0)
+        Yhat_null = get_Yhat(res_null,Y_all)
+        Yhat_alt_DNR = get_Yhat(res_alt_DNR,Y_DNR)
+        Yhat_alt_WT = get_Yhat(res_alt_WT,Y_WT)
+        res = df_perm %>%
+            dcast(formula(paste0(individual_col,"+",species_col,"~",time_col)),value.var=abund_col) %>%
+            select_(individual_col,species_col) %>%
+            tidyr::unite_("rows",c(individual_col,species_col),remove=FALSE)
+        res$sqErrors1 = 0
+        res[match(rownames(Y_DNR),res$rows),'sqErrors1'] = rowSums((Y_DNR - Yhat_alt_DNR)^2,na.rm = TRUE)
+        res[match(rownames(Y_WT),res$rows),'sqErrors1'] = rowSums((Y_WT - Yhat_alt_WT)^2,na.rm=TRUE)
+        res$sqErrors0 = 0
+        res$sqErrors0 = rowSums((Y_all - Yhat_null)^2,na.rm=TRUE)
+        F_df = group_by_(res,species_col) %>% summarise(F = (sum(sqErrors0,na.rm=TRUE)-sum(sqErrors1,na.rm=TRUE))/sum(sqErrors1,na.rm=TRUE))
+        
+        return(F_df)},
+        error = function(e) return(NULL)
+        )
+    }
+    
+    #Join the permutation F values to the real one so afterwards we can get a p-value for each taxon
+    joinedF = right_join(realFs,permFs,by=species_col)
+    return(joinedF)
+
+}
+```
+
+
+## Results of FPCA on some sample data
+This is a small subset of the data to illustrate how to invoke permFPCA. In a realistic setting you would use all your data since the eigen-functions are obtained across all trajectories.
+
+```{r fpca_res_display}
+sample_midas_df = read_tsv("sample_input_for_fpca.txt")
+midas_fpca_res = permFPCA(df = sample_midas_df,
+                          individual_col = "individual",
+                          time_col = "week",
+                          species_col = "species_id",
+                          group_col = "group",
+                          abund_col = "rpkg",
+                          cases_label = "DNR",
+                          nperm=10000,
+                          ncores = max(1,numCores-2))
+# Since the result from permFPCA gives us the real F value as well as a distribution of null values,
+# we need to see what proportion of the null F values were greater than the real value in order to
+# gauge significance
+midas_fpca_table = group_by(midas_fpca_res,species_id) %>%
+    summarise(p = sum(F_real <= F)/n()) %>% 
+    select(species_id,p) %>%
+    ungroup %>%
+    inner_join(sample_midas_df %>% select(species_id,species_name) %>% unique)
+auc_df = sample_midas_df %>%
+    group_by(species_id,group) %>%
+    do(loess_obj = tryCatch({loess(rpkg~week,data=.)},
+                            error=function(e){return(NULL)}),weeks=.$week) %>%
+    filter(!is.null(loess_obj)) %>%
+    mutate(pr = tryCatch({list(predict(loess_obj,weeks))},
+                         error=function(e){return(list(NULL))})) %>%
+    filter(length(pr)>1) %>%
+    mutate(auc=MESS::auc(weeks,pr,type="spline")) %>%
+    dcast(species_id~group,value.var="auc") %>%
+    mutate(diff_in_auc = DNR-WT)
+midas_fpca_table = midas_fpca_table %>% left_join(auc_df)
+datatable(midas_fpca_table)
+```
